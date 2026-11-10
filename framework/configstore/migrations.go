@@ -617,6 +617,7 @@ var configstoreMigrationSteps = []migrationStep{
 	{IDs: []string{"add_evals_dataset_folders"}, run: migrationAddEvalsDatasetFolders},
 	{IDs: []string{"add_evals_dataset_folder_parent"}, run: migrationAddEvalsDatasetFolderParent},
 	{IDs: []string{"add_evals_dataset_files"}, run: migrationAddEvalsDatasetFiles},
+	{IDs: []string{"add_evals_run_tables"}, run: migrationAddEvalsRunTables},
 }
 
 // warpLogEmbeddingColumns are the semantic-search configuration columns added
@@ -1395,6 +1396,32 @@ func migrationAddEvalsDatasetFiles(ctx context.Context, db *gorm.DB, logger sche
 		},
 		Rollback: func(*gorm.DB) error {
 			return fmt.Errorf("%s is non-rollbackable: dropping the files table would permanently delete uploaded dataset files", migrationName)
+		},
+	})
+}
+
+// migrationAddEvalsRunTables creates the test run tables: runs, their entries, and one
+// result per entry and evaluator. All are additive: older binaries ignore them. Every
+// column ships with the tables, score_number included: it lets two runs be compared row
+// by row in one query.
+func migrationAddEvalsRunTables(ctx context.Context, db *gorm.DB, logger schemas.Logger) error {
+	migrationName := "add_evals_run_tables"
+	return RunSingleMigration(ctx, nil, db, logger, &migrator.Migration{
+		ID: migrationName,
+		Migrate: func(tx *gorm.DB) error {
+			mgr := tx.WithContext(ctx).Migrator()
+			for _, table := range []any{&tables.TableEvalRun{}, &tables.TableEvalRunEntry{}, &tables.TableEvalRunResult{}} {
+				if mgr.HasTable(table) {
+					continue
+				}
+				if err := mgr.CreateTable(table); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Rollback: func(*gorm.DB) error {
+			return fmt.Errorf("%s is non-rollbackable: dropping the run tables would permanently delete test run results", migrationName)
 		},
 	})
 }

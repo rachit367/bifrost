@@ -808,6 +808,18 @@ func TestMigrationAddEvalExecutionClaimColumns(t *testing.T) {
 	require.NoError(t, migrationAddEvalExecutionClaimColumns(ctx, db, testMigrationLogger), "a re-run is a no-op")
 }
 
+// score_number ships with the run tables themselves, in this unreleased version, so
+// there is no separate step whose rollback could rebuild the results table on SQLite and
+// lose its indexes.
+func TestEvalsRunResultScoreNumberShipsWithTheRunTables(t *testing.T) {
+	for _, step := range configstoreMigrationSteps {
+		assert.NotContains(t, step.IDs, "add_evals_run_result_score_number")
+	}
+	db := setupRDBTestStore(t).DB()
+	require.NoError(t, migrationAddEvalsRunTables(context.Background(), db, testMigrationLogger))
+	assert.True(t, db.Migrator().HasColumn(&tables.TableEvalRunResult{}, "score_number"))
+}
+
 func TestMigrationAddVKRotationCooldownColumns_CreatesIndex(t *testing.T) {
 	db := setupVKTestDBWithoutRotationColumns(t)
 	ctx := context.Background()

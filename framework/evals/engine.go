@@ -196,6 +196,26 @@ func (e *Engine) modelOf(def Definition) (provider, model string, needsModel boo
 		// A config that does not parse needs no key: it runs locally and reports its error.
 		return "", "", false
 	}
+	return modelOfConfig(def, cfg)
+}
+
+// ModelProvider is the provider whose eval key a definition's model calls run on: an AI
+// judge's provider, or an embedding metric's embedding provider. "" when it calls no
+// model. A run checks it before it starts, so a missing key is reported up front.
+func ModelProvider(def Definition) string {
+	cfg, err := ParseConfig(def.Type, def.Config)
+	if err != nil {
+		return ""
+	}
+	provider, _, needsModel := modelOfConfig(def, cfg)
+	if !needsModel {
+		return ""
+	}
+	return provider
+}
+
+// modelOfConfig reports the model a parsed definition calls, if any.
+func modelOfConfig(def Definition, cfg Config) (provider, model string, needsModel bool) {
 	switch c := cfg.(type) {
 	case *AIConfig:
 		return c.Provider, c.Model, true
@@ -330,6 +350,13 @@ func missingVariables(required []string, in Input) []string {
 	return missing
 }
 
+// CheckScore reports whether a score has the shape an evaluator's config allows: a
+// boolean for yes or no, a number within the scale, one of the choices. A reviewer's
+// score for a human evaluator is checked with it.
+func CheckScore(cfg Config, score Score) error {
+	return checkScore(cfg, score)
+}
+
 // checkScore verifies that a score has the shape its grading style promises. Types
 // without a declared style (statistical, API) are not checked.
 func checkScore(cfg Config, score Score) error {
@@ -340,6 +367,8 @@ func checkScore(cfg Config, score Score) error {
 		style, scale = c.GradingStyle, c.Scale
 	case *ProgrammaticConfig:
 		style = c.ResponseType
+	case *HumanConfig:
+		style, scale = c.EvaluationType, c.Scale
 	default:
 		return nil
 	}
