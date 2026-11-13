@@ -35,6 +35,7 @@ const evalDatasetBatch = 500
 // EvalDatasetListParams filters and pages a dataset listing.
 type EvalDatasetListParams struct {
 	Search string // case-insensitive substring of name or description
+	Name   string // exact name; empty matches any name
 	Tag    string // exact tag
 	Limit  int    // 0 means no limit
 	Offset int
@@ -122,6 +123,9 @@ func (s *RDBConfigStore) ListEvalDatasets(ctx context.Context, params EvalDatase
 	if search := strings.TrimSpace(params.Search); search != "" {
 		pattern := "%" + likeEscaper.Replace(strings.ToLower(search)) + "%"
 		query = query.Where(`(LOWER(evals_datasets.name) LIKE ? ESCAPE '\' OR LOWER(evals_datasets.description) LIKE ? ESCAPE '\')`, pattern, pattern)
+	}
+	if params.Name != "" {
+		query = query.Where("evals_datasets.name = ?", params.Name)
 	}
 	if params.Tag != "" {
 		quoted, err := json.Marshal(params.Tag)
