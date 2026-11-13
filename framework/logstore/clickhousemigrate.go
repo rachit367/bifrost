@@ -762,6 +762,9 @@ func migrationClickHouseTraceTables(ctx context.Context, db *gorm.DB, cluster st
 		// A mark is versioned by its own time. The clean row ClearTraceDirty writes carries the
 		// time of the mark it read, so it replaces that mark and loses to any newer one.
 		{&TraceDirtyMark{}, chTableOpts{table: "trace_dirty_marks", orderBy: "(project_id, trace_id)", version: "`ver` DateTime64(9) DEFAULT marked_at"}},
+		// Two replicas can both find no experiment and both insert one. The version counts down with
+		// insert time, as for parts, so the first registration wins the merge.
+		{&TraceExperiment{}, chTableOpts{table: "trace_experiments", orderBy: "(project_id, id)", ttl: chTraceRowTTL, version: "`ver` UInt64 DEFAULT 18446744073709551615 - toUnixTimestamp64Nano(now64(9))"}},
 	} {
 		if err := clickhouseCreateTable(ctx, db, table.model, table.opts, cluster); err != nil {
 			return fmt.Errorf("clickhouse: create %s table: %w", table.opts.table, err)
